@@ -1,5 +1,5 @@
 [project]
-name = "fintech-dashboard"
+name = "simple-risk-dashboard"
 version = "0.2.0"
 description = "MVP Risk Management Dashboard — Django backend, Plotly.js frontend"
 readme = "README.md"

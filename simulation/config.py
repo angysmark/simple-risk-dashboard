@@ -54,7 +54,7 @@ PRICE_TICK_INTERVAL: float = 5.0   # 1 tick per instrument every 5 s
 TRADE_CHECK_INTERVAL: float = 0.5  # 2 checks/sec per client/instrument
 
 # Probability that a given client places a trade on any given check.
-# Scale: 5 clients × 6 instruments × 1 check/5 s × 0.10 prob ≈ 0.6 trades/5 s.
+# Scale: 5 clients × 6 instruments × 2 checks/sec × 0.10 prob ≈ 6 trades/sec.
 TRADE_PROBABILITY: float = 0.10
 
 # Trade size bounds (lots).
@@ -68,7 +68,7 @@ MAX_NET_LOTS: float = 50.0
 # How many data points to keep in rolling history buffers (per series).
 MAX_HISTORY_POINTS: int = 500
 
-# Dash UI refresh rate (milliseconds).  1 000 ms ≈ real-time for human eyes.
+# Dashboard UI refresh rate (milliseconds).
 DASHBOARD_REFRESH_MS: int = 5_000
 
 # ---------------------------------------------------------------------------

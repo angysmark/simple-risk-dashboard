@@ -12,8 +12,8 @@ risk metrics in an interactive web UI.
 
 ```bash
 # 1. Clone and enter the repo
-git clone <repo-url>
-cd fintech-dashboard
+git clone https://github.com/angysmark/simple-risk-dashboard.git
+cd simple-risk-dashboard
 
 # 2. Install dependencies (requires uv ≥ 0.4)
 uv sync
@@ -78,6 +78,9 @@ uv run python manage.py runserver 127.0.0.1:8050 --noreload
 | **Recent Trades** | Last 20 trades with client, direction, size, price, spread earned |
 
 All Plotly charts support interactive hover tooltips (timestamp + value).
+Time-series charts (PnL, Spread Income) display a fixed window of the last
+60 records; slots with no data yet are shown as gaps so the chart width never
+changes as the buffer fills.
 
 ---
 
@@ -88,14 +91,14 @@ Django dev server (main process)
   │
   ├── SimulationConfig.ready()       ← called once on startup
   │     ├── DataStore                  thread-safe shared state (RLock + deques)
-  │     ├── MarketDataStreamer [daemon] random-walk prices → DataStore every 100 ms
-  │     ├── TradingEngine     [daemon] client trades       → DataStore every 500 ms
+  │     ├── MarketDataStreamer [daemon] random-walk prices → DataStore every 5 s
+  │     ├── TradingEngine     [daemon] client trades       → DataStore every 0.5 s
   │     └── RiskEngine        [daemon] MTM PnL snapshot    → DataStore every 1 s
   │
   ├── GET /                          renders dashboard/index.html
   │
   └── GET /api/data/                 JSON snapshot of all simulation state
-        ↑ polled every 1 s by the browser's setInterval()
+        ↑ polled every 5 s by the browser's setInterval()
 ```
 
 ### Why Django?
@@ -107,7 +110,7 @@ exactly what is needed to launch background threads before the first request.
 
 ### Why polling instead of WebSockets?
 
-For 1-second UI refresh intervals, a simple `GET /api/data/` fetch is:
+For 5-second UI refresh intervals, a simple `GET /api/data/` fetch is:
 - Easier to debug (visible in the browser's Network tab)
 - No extra dependencies (no channels, no Redis)
 - Stateless and trivially scalable
@@ -117,7 +120,7 @@ requirement.
 
 ### Scalability
 
-`src/config.py` contains a commented-out **10× scale preset**:
+`simulation/config.py` contains a commented-out **10× scale preset**:
 
 ```python
 # TRADE_PROBABILITY = 1.0
@@ -125,9 +128,9 @@ requirement.
 # DASHBOARD_REFRESH_MS = 2_000
 ```
 
-Uncommenting these raises the simulation to ~60 trades/sec and 100 price
-ticks/sec.  Increasing `DASHBOARD_REFRESH_MS` throttles the UI independently
-of data generation so the browser stays responsive.
+Uncommenting these drives trade probability to 100 % and price ticks to
+100/sec.  `DASHBOARD_REFRESH_MS` can be raised independently to throttle the
+UI without slowing data generation, keeping the browser responsive under load.
 
 ---
 
