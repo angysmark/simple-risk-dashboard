@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Finalto — Risk Dashboard</title>
+
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous" />
+
+  <style>
+    :root {
+      --bg:        #0d1117;
+      --card-bg:   #161b22;
+      --border:    #30363d;
+      --text:      #c9d1d9;
+      --muted:     #8b949e;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --blue:      #58a6ff;
+      --gold:      #e3b341;
+    }
+
+    body            { background: var(--bg); color: var(--text); font-size: 13px; }
+    .card           { background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; }
+    .card-header    { background: var(--card-bg); border-bottom: 1px solid var(--border);
+                      color: var(--muted); font-size: 11px; font-weight: 600;
+                      letter-spacing: .05em; text-transform: uppercase; padding: .5rem .75rem; }
+    .card-body      { padding: .5rem .75rem; }
+    .kpi-label      { color: var(--muted); font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+    .kpi-value      { font-size: 1.35rem; font-weight: 700; margin: 0; }
+    hr              { border-color: var(--border); }
+    table           { color: var(--text); font-size: 12px; }
+    th              { color: var(--muted) !important; font-weight: 600; }
+    tbody tr:hover  { background: rgba(255,255,255,.03); }
+    .text-green     { color: var(--green) !important; }
+    .text-red       { color: var(--red) !important; }
+    .text-gold      { color: var(--gold) !important; }
+    .text-muted-custom { color: var(--muted) !important; }
+    .badge-buy      { background: rgba(248,81,73,.15);  color: var(--red);   border: 1px solid var(--red);   padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+    .badge-sell     { background: rgba(63,185,80,.15);  color: var(--green); border: 1px solid var(--green); padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+    .dot            { width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+                      background: var(--green); animation: pulse 2s infinite; margin-right: 6px; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  </style>
+</head>
+
+<body>
+<div class="container-fluid px-3 py-3">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <div class="d-flex align-items-center mb-1">
+    <span class="dot"></span>
+    <h5 class="mb-0 fw-semibold">Finalto — Risk Management Dashboard</h5>
+    <span id="last-updated" class="ms-auto text-muted-custom" style="font-size:11px"></span>
+  </div>
+  <hr class="mt-1 mb-3" />
+
+  <!-- ── KPI Cards ──────────────────────────────────────────────────────── -->
+  <div class="row g-2 mb-3">
+    <div class="col-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="kpi-label">Total PnL (USD)</div>
+          <div class="kpi-value" id="kpi-pnl">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="kpi-label">Spread Income (USD)</div>
+          <div class="kpi-value text-gold" id="kpi-income">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="kpi-label">Total Trades</div>
+          <div class="kpi-value" id="kpi-trades">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="kpi-label">Open Positions</div>
+          <div class="kpi-value" id="kpi-positions">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PnL Curve (full width) ─────────────────────────────────────────── -->
+  <div class="row g-2 mb-3">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">PnL Over Time</div>
+        <div class="card-body p-0">
+          <div id="chart-pnl-curve" style="height:260px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Positions + PnL Attribution ───────────────────────────────────── -->
+  <div class="row g-2 mb-3">
+    <div class="col-6">
+      <div class="card h-100">
+        <div class="card-header">Net Positions by Instrument (lots)</div>
+        <div class="card-body p-0">
+          <div id="chart-positions" style="height:230px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6">
+      <div class="card h-100">
+        <div class="card-header">PnL Attribution by Instrument</div>
+        <div class="card-body p-0">
+          <div id="chart-pnl-attr" style="height:230px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Client Yield + Spread Income ──────────────────────────────────── -->
+  <div class="row g-2 mb-3">
+    <div class="col-6">
+      <div class="card h-100">
+        <div class="card-header">Client Yield (PnL Attribution)</div>
+        <div class="card-body p-0">
+          <div id="chart-client-yield" style="height:230px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6">
+      <div class="card h-100">
+        <div class="card-header">Cumulative Spread Income (Monetisation)</div>
+        <div class="card-body p-0">
+          <div id="chart-spread-income" style="height:230px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Live Price Feed ────────────────────────────────────────────────── -->
+  <div class="row g-2 mb-3">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">Live Price Feed</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0" id="price-table">
+            <thead>
+              <tr>
+                <th>Symbol</th><th>Bid</th><th>Mid</th><th>Ask</th>
+                <th>Spread (pts)</th><th>Updated</th>
+              </tr>
+            </thead>
+            <tbody id="price-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Recent Trades ──────────────────────────────────────────────────── -->
+  <div class="row g-2">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">Recent Trades (last 20)</div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-borderless mb-0">
+            <thead>
+              <tr>
+                <th>Time</th><th>Client</th><th>Symbol</th><th>Side</th>
+                <th>Lots</th><th>Price</th><th>Spread $$</th>
+              </tr>
+            </thead>
+            <tbody id="trade-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container-fluid -->
+
+<!-- Plotly.js -->
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+
+<script>
+"use strict";
+
+// ── Colour palette ────────────────────────────────────────────────────────
+const C = {
+  bg:     '#0d1117',
+  card:   '#161b22',
+  border: '#30363d',
+  text:   '#c9d1d9',
+  muted:  '#8b949e',
+  green:  '#3fb950',
+  red:    '#f85149',
+  blue:   '#58a6ff',
+  gold:   '#e3b341',
+};
+
+const SYM_COLOUR = {
+  'EUR/USD': '#58a6ff',
+  'GBP/USD': '#3fb950',
+  'USD/JPY': '#e3b341',
+  'USD/CHF': '#f0883e',
+  'AUD/USD': '#bc8cff',
+  'XAU/USD': '#ffa657',
+};
+
+// ── Shared Plotly layout base ─────────────────────────────────────────────
+function baseLayout(extra = {}) {
+  return Object.assign({
+    paper_bgcolor: C.card,
+    plot_bgcolor:  C.card,
+    font:   { color: C.text, size: 11 },
+    margin: { l: 55, r: 15, t: 15, b: 40 },
+    hovermode: 'x unified',
+    xaxis: { gridcolor: C.border, zeroline: false, color: C.muted },
+    yaxis: { gridcolor: C.border, zeroline: true, zerolinecolor: C.border, color: C.muted },
+    legend: { bgcolor: 'rgba(0,0,0,0)', bordercolor: C.border, font: { size: 11 } },
+    hoverlabel: { bgcolor: C.card, bordercolor: C.border, font: { color: C.text } },
+  }, extra);
+}
+
+function barLayout(extra = {}) {
+  return Object.assign(baseLayout(), { hovermode: 'closest', bargap: 0.3 }, extra);
+}
+
+const PLOTLY_CFG = { displayModeBar: false, responsive: true };
+
+// ── Fixed-window helper ───────────────────────────────────────────────────
+// Always returns exactly CHART_WINDOW {x, y} pairs so the chart never
+// changes its slot count.  Slots with no real data yet are filled with null
+// (Plotly renders these as gaps, leaving the x-axis width unchanged).
+const CHART_WINDOW = 60;
+
+function fixedWindow(history) {
+  // Take only the most-recent CHART_WINDOW records from the backend
+  const recent = history.slice(-CHART_WINDOW);
+  const pad    = CHART_WINDOW - recent.length;
+
+  // For the empty leading slots we extrapolate timestamps backwards from the
+  // first real point using the dashboard refresh interval, so the x-axis
+  // spans a consistent time range even before the buffer is full.
+  const intervalMs = {{ refresh_ms }};
+  const anchorMs   = recent.length
+    ? new Date(recent[0].t).getTime()
+    : Date.now();
+
+  const xs = [];
+  const ys = [];
+
+  for (let i = pad; i > 0; i--) {
+    xs.push(new Date(anchorMs - i * intervalMs).toISOString());
+    ys.push(null);
+  }
+  for (const p of recent) {
+    xs.push(p.t);
+    ys.push(p.v);
+  }
+
+  return { x: xs, y: ys };
+}
+
+// ── Initialise empty charts ───────────────────────────────────────────────
+function initCharts() {
+  Plotly.newPlot('chart-pnl-curve',    [], baseLayout({ yaxis: { tickprefix: '$', tickformat: ',.0f', gridcolor: C.border, zerolinecolor: C.border } }), PLOTLY_CFG);
+  Plotly.newPlot('chart-positions',    [], barLayout(), PLOTLY_CFG);
+  Plotly.newPlot('chart-pnl-attr',     [], barLayout({ yaxis: { tickprefix: '$', tickformat: ',.0f' } }), PLOTLY_CFG);
+  Plotly.newPlot('chart-client-yield', [], barLayout({ yaxis: { tickprefix: '$', tickformat: ',.0f' } }), PLOTLY_CFG);
+  Plotly.newPlot('chart-spread-income',[], baseLayout({ yaxis: { tickprefix: '$', tickformat: ',.0f', gridcolor: C.border } }), PLOTLY_CFG);
+}
+
+// ── Format helpers ────────────────────────────────────────────────────────
+const fmtUSD = v => (v >= 0 ? '+' : '') + '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtNum = v => v.toLocaleString('en-US');
+
+function colourForValue(v) { return v >= 0 ? C.green : C.red; }
+
+// ── Update KPI cards ──────────────────────────────────────────────────────
+function updateKPIs(kpis) {
+  const pnlEl = document.getElementById('kpi-pnl');
+  pnlEl.textContent = fmtUSD(kpis.total_pnl_usd);
+  pnlEl.style.color = colourForValue(kpis.total_pnl_usd);
+
+  document.getElementById('kpi-income').textContent    = '$' + fmtNum(kpis.spread_income_usd.toFixed(2));
+  document.getElementById('kpi-trades').textContent    = fmtNum(kpis.trade_count);
+  document.getElementById('kpi-positions').textContent = kpis.open_positions;
+}
+
+// ── Update PnL curve ──────────────────────────────────────────────────────
+function updatePnLCurve(history) {
+  const { x: xs, y: ys } = fixedWindow(history);
+  const trace = {
+    x: xs, y: ys,
+    type: 'scatter', mode: 'lines',
+    line:       { color: C.blue, width: 2 },
+    fill:       'tozeroy',
+    fillcolor:  'rgba(88,166,255,0.07)',
+    name:       'Total PnL',
+    hovertemplate: '%{x|%H:%M:%S}<br>PnL: $%{y:,.2f}<extra></extra>',
+  };
+  Plotly.react('chart-pnl-curve', [trace],
+    baseLayout({ yaxis: { tickprefix: '$', tickformat: ',.0f', gridcolor: C.border, zerolinecolor: C.border } }),
+    PLOTLY_CFG);
+}
+
+// ── Update bar chart ──────────────────────────────────────────────────────
+function updateBarChart(elemId, labels, values, layout, hoverSuffix = '') {
+  const colours = values.map(v => v >= 0 ? C.green : C.red);
+  const trace = {
+    x: labels, y: values,
+    type: 'bar',
+    marker: { color: colours },
+    hovertemplate: '%{x}<br>' + hoverSuffix + '%{y:,.2f}<extra></extra>',
+  };
+  Plotly.react(elemId, [trace], layout, PLOTLY_CFG);
+}
+
+// ── Update spread income curve ────────────────────────────────────────────
+function updateSpreadIncome(history) {
+  const { x: xs, y: ys } = fixedWindow(history);
+  const trace = {
+    x: xs, y: ys,
+    type: 'scatter', mode: 'lines',
+    line:      { color: C.gold, width: 2 },
+    fill:      'tozeroy',
+    fillcolor: 'rgba(227,179,65,0.07)',
+    name:      'Spread Income',
+    hovertemplate: '%{x|%H:%M:%S}<br>$%{y:,.2f}<extra></extra>',
+  };
+  Plotly.react('chart-spread-income', [trace],
+    baseLayout({ yaxis: { tickprefix: '$', tickformat: ',.0f', gridcolor: C.border } }),
+    PLOTLY_CFG);
+}
+
+// ── Update price table ────────────────────────────────────────────────────
+function updatePriceTable(prices) {
+  const tbody = document.getElementById('price-tbody');
+  const SYMS  = ['EUR/USD','GBP/USD','USD/JPY','USD/CHF','AUD/USD','XAU/USD'];
+  tbody.innerHTML = SYMS.map(sym => {
+    const p = prices[sym];
+    if (!p) return '';
+    const col = SYM_COLOUR[sym] || C.text;
+    return `<tr>
+      <td style="color:${col};font-weight:600">${sym}</td>
+      <td style="color:${C.red}">${p.bid}</td>
+      <td>${p.mid}</td>
+      <td style="color:${C.green}">${p.ask}</td>
+      <td style="color:${C.muted}">${p.spread_pts}</td>
+      <td style="color:${C.muted}">${p.updated}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Update trade log ──────────────────────────────────────────────────────
+function updateTradeLog(trades) {
+  const tbody = document.getElementById('trade-tbody');
+  if (!trades.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted-custom py-3">No trades yet…</td></tr>';
+    return;
+  }
+  tbody.innerHTML = trades.map(t => {
+    const sideBadge = t.side === 'BUY'
+      ? `<span class="badge-buy">BUY</span>`
+      : `<span class="badge-sell">SELL</span>`;
+    const symCol = SYM_COLOUR[t.symbol] || C.text;
+    return `<tr>
+      <td style="color:${C.muted}">${t.time}</td>
+      <td>${t.client}</td>
+      <td style="color:${symCol}">${t.symbol}</td>
+      <td>${sideBadge}</td>
+      <td>${t.lots.toFixed(2)}</td>
+      <td>${t.price}</td>
+      <td style="color:${C.gold}">$${t.spread_income.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Main refresh ──────────────────────────────────────────────────────────
+async function refresh() {
+  let data;
+  try {
+    const resp = await fetch('/api/data/', { cache: 'no-store' });
+    if (!resp.ok) return;   // server not ready yet — silently retry
+    data = await resp.json();
+  } catch (e) {
+    return; // network error — silently retry next interval
+  }
+
+  updateKPIs(data.kpis);
+  updatePnLCurve(data.pnl_history);
+
+  // Net positions bar
+  const syms    = Object.keys(data.positions);
+  const lots    = syms.map(s => data.positions[s].net_lots);
+  updateBarChart('chart-positions', syms, lots,
+    barLayout({ yaxis: { title: { text: 'lots', font: { color: C.muted } } } }),
+    'Lots: ');
+
+  // PnL attribution by instrument
+  const iSyms = Object.keys(data.instrument_pnl);
+  const iPnls = iSyms.map(s => data.instrument_pnl[s]);
+  updateBarChart('chart-pnl-attr', iSyms, iPnls,
+    barLayout({ yaxis: { tickprefix: '$', tickformat: ',.0f' } }),
+    '$');
+
+  // Client yield
+  const clients    = Object.keys(data.client_pnl);
+  const clientPnls = clients.map(c => data.client_pnl[c]);
+  updateBarChart('chart-client-yield', clients, clientPnls,
+    barLayout({ yaxis: { tickprefix: '$', tickformat: ',.0f' } }),
+    '$');
+
+  updateSpreadIncome(data.spread_income_history);
+  updatePriceTable(data.prices);
+  updateTradeLog(data.recent_trades);
+
+  document.getElementById('last-updated').textContent =
+    'Updated ' + new Date().toLocaleTimeString();
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+initCharts();
+refresh();
+setInterval(refresh, {{ refresh_ms }});
+</script>
+</body>
+</html>
