@@ -91,9 +91,10 @@ Django dev server (main process)
   │
   ├── SimulationConfig.ready()       ← called once on startup
   │     ├── DataStore                  thread-safe shared state (RLock + deques)
-  │     ├── MarketDataStreamer [daemon] random-walk prices → DataStore every 5 s
-  │     ├── TradingEngine     [daemon] client trades       → DataStore every 0.5 s
-  │     └── RiskEngine        [daemon] MTM PnL snapshot    → DataStore every 1 s
+  │     └── SimulationLoop [daemon]    single thread, one tick every 5 s:
+  │           ├── _update_prices         Gaussian random-walk → DataStore
+  │           ├── _generate_trades       client trades        → DataStore
+  │           └── _calculate_risk        MTM PnL snapshot     → DataStore
   │
   ├── GET /                          renders dashboard/index.html
   │
@@ -106,7 +107,7 @@ Django dev server (main process)
 Django provides a clean application boundary between the simulation engine
 (the `simulation` Django app) and the presentation layer (the `dashboard` app).
 `AppConfig.ready()` is the standard Django hook for process-startup work —
-exactly what is needed to launch background threads before the first request.
+exactly what is needed to launch the background thread before the first request.
 
 ### Why polling instead of WebSockets?
 
@@ -150,13 +151,11 @@ simple-risk-dashboard/
 │   └── wsgi.py                 # WSGI callable for production deployment
 │
 ├── simulation/                 # Django app — simulation engine
-│   ├── apps.py                 # SimulationConfig.ready() starts threads
-│   ├── state.py                # Module-level DataStore + RiskEngine singletons
+│   ├── apps.py                 # SimulationConfig.ready() starts the thread
+│   ├── state.py                # Module-level DataStore singleton
 │   ├── config.py               # Instruments, clients, simulation parameters
 │   ├── data_store.py           # Thread-safe shared state (RLock + deques)
-│   ├── streamer.py             # Market data price simulator
-│   ├── trading_engine.py       # Client trade simulator + book updater
-│   └── risk_engine.py          # MTM PnL and risk metric calculations
+│   └── simulator.py            # SimulationLoop: prices → trades → risk, each tick
 │
 └── dashboard/                  # Django app — UI + JSON API
     ├── apps.py
