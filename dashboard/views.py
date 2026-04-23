@@ -51,12 +51,12 @@ def api_data(request: HttpRequest) -> JsonResponse:
       ]
     }
     """
-    if state.store is None or state.risk_engine is None:
+    if state.store is None:
         # Very early request before simulation is up (rare race at startup)
         return JsonResponse({"error": "simulation not ready"}, status=503)
 
     snap = state.store.snapshot()
-    metrics = state.risk_engine.latest_metrics()
+    metrics = snap.metrics
 
     # --- KPIs ---
     open_positions = sum(1 for b in snap.book.values() if abs(b.net_lots) > 1e-6)

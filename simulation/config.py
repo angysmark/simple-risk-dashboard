@@ -46,15 +46,12 @@ CLIENTS: list[str] = [
 # Simulation parameters  (tweak these to stress-test the system)
 # ---------------------------------------------------------------------------
 
-# How often the price streamer ticks (seconds).
-# Lower → more ticks → higher CPU / memory pressure.
-PRICE_TICK_INTERVAL: float = 5.0   # 1 tick per instrument every 5 s
+# How often the simulation loop ticks (seconds).
+# Each tick: prices advance → trades are generated → risk is recalculated.
+SIMULATION_TICK_INTERVAL: float = 5.0
 
-# How often the trading engine fires (seconds).
-TRADE_CHECK_INTERVAL: float = 0.5  # 2 checks/sec per client/instrument
-
-# Probability that a given client places a trade on any given check.
-# Scale: 5 clients × 6 instruments × 2 checks/sec × 0.10 prob ≈ 6 trades/sec.
+# Probability that a given client places a trade on any given tick.
+# Scale: 5 clients × 6 instruments × 0.10 prob ≈ 3 trades/tick.
 TRADE_PROBABILITY: float = 0.10
 
 # Trade size bounds (lots).

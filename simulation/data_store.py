@@ -1,18 +1,17 @@
 """
 Thread-safe shared data store.
 
-All simulation threads write here; the Dash callback thread reads from here.
+The simulation thread writes here; the Django view thread reads from here.
 A single RLock guards every mutation so readers always see a consistent snapshot.
 
 Design choices
 --------------
 * ``collections.deque`` with ``maxlen`` gives O(1) append and automatic eviction
   of old data — no manual trimming needed.
-* We copy-on-read in ``snapshot()`` so Dash callbacks work on stable data while
-  the simulation threads continue writing.
-* A single coarse-grained lock is simple and correct.  At the data rates this
-  simulation targets (~10 price ticks/sec, ~6 trades/sec) lock contention is
-  negligible.  For 10× scale the lock overhead is still < 1 µs per acquisition.
+* We copy-on-read in ``snapshot()`` so the view thread works on stable data while
+  the simulation thread continues writing.
+* A single coarse-grained lock is simple and correct.  With one writer and one
+  reader, contention is negligible.
 """
 
 from __future__ import annotations
@@ -24,6 +23,17 @@ from datetime import datetime
 from typing import Optional
 
 from simulation.config import CLIENTS, INSTRUMENTS, MAX_HISTORY_POINTS
+
+
+# ---------------------------------------------------------------------------
+# Risk metrics (computed by SimulationLoop._calculate_risk each tick)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RiskMetrics:
+    total_pnl_usd: float = 0.0
+    per_instrument_pnl_usd: dict[str, float] = field(default_factory=dict)
+    per_client_pnl_usd: dict[str, float] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +113,9 @@ class DataStore:
         # Cumulative spread income (running total, in USD)
         self.cumulative_spread_income_usd: float = 0.0
 
+        # Latest risk metrics (overwritten each tick by the simulation loop)
+        self._latest_metrics: RiskMetrics = RiskMetrics()
+
     # ------------------------------------------------------------------
     # Write helpers (called by simulation threads)
     # ------------------------------------------------------------------
@@ -145,13 +158,18 @@ class DataStore:
                 (timestamp, self.cumulative_spread_income_usd)
             )
 
+    def update_metrics(self, metrics: RiskMetrics) -> None:
+        with self._lock:
+            self._latest_metrics = metrics
+
     # ------------------------------------------------------------------
     # Read helpers (called by Dash callback thread)
     # ------------------------------------------------------------------
 
     def snapshot(self) -> "_Snapshot":
-        """Return a consistent, unlocked copy of all state for the UI thread."""
+        """Return a consistent, unlocked copy of all state for the view thread."""
         with self._lock:
+            m = self._latest_metrics
             return _Snapshot(
                 latest_prices=dict(self.latest_prices),
                 price_history={
@@ -166,6 +184,11 @@ class DataStore:
                 pnl_history=list(self.pnl_history),
                 spread_income_history=list(self.spread_income_history),
                 cumulative_spread_income_usd=self.cumulative_spread_income_usd,
+                metrics=RiskMetrics(
+                    total_pnl_usd=m.total_pnl_usd,
+                    per_instrument_pnl_usd=dict(m.per_instrument_pnl_usd),
+                    per_client_pnl_usd=dict(m.per_client_pnl_usd),
+                ),
             )
 
 
@@ -231,3 +254,4 @@ class _Snapshot:
     pnl_history: list[tuple[datetime, float]]
     spread_income_history: list[tuple[datetime, float]]
     cumulative_spread_income_usd: float
+    metrics: RiskMetrics
